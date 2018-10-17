@@ -28,8 +28,6 @@ yhigh = 0.2
 zlow = 0.3
 zhigh = 0.6
 
-SAVE_PATH = '/home/msieb/projects/CVAE/data'
-USE_CUDA = True
 
 
 parser = argparse.ArgumentParser()
@@ -39,11 +37,18 @@ parser.add_argument("--learning_rate", type=float, default=0.001)
 parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 256])
 parser.add_argument("--decoder_layer_sizes", type=list, default=[256, 3])
 parser.add_argument("--latent_size", type=int, default=10)
+parser.add_argument('-e', '--expname', type=str, required=True)
+
 args = parser.parse_args()
 
+EXP_PATH = '../experiments/{}'.format(args.expname)
+SAVE_PATH = join(EXP_PATH, 'data')
+MODEL_PATH = join(EXP_PATH, 'trained_weights')
+
+USE_CUDA = True
 EPOCH=23
 model = VAE(encoder_layer_sizes=args.encoder_layer_sizes, latent_size=args.latent_size, decoder_layer_sizes=args.decoder_layer_sizes, conditional=True, num_labels=6)
-model.load_state_dict(torch.load('/home/msieb/projects/CVAE/trained_weights_2/epoch_{}.pk'.format(EPOCH), map_location=lambda storage, loc: storage))
+model.load_state_dict(torch.load(join(MODEL_PATH, 'epoch_{}.pk'.format(EPOCH)), map_location=lambda storage, loc: storage))
 if USE_CUDA:
     model = model.cuda()
 
