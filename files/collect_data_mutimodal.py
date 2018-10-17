@@ -22,13 +22,18 @@ yhigh = 0.2
 zlow = 0.3
 zhigh = 0.6
 
-SAVE_PATH = '../data_multimodal'
+parser = argparse.ArgumentParser()
+parser.add_argument('-e', '--expname', type=str, required=True)
+parser.add_argument('-r', '--runname', type=str, required=True)
+args = parser.parse_args()
+
+EXP_PATH = '../experiments/{}'.format(args.expname)
+SAVE_PATH = join(EXP_PATH, 'data')
+MODEL_PATH = join(EXP_PATH, 'trained_weights')
+
 if not os.path.exists(SAVE_PATH):
 	os.makedirs(SAVE_PATH)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-r', '--runname', type=str, required=True)
-args = parser.parse_args()
 
 def normalize(a):
 	return a/np.linalg.norm(a)
@@ -70,19 +75,20 @@ def main():
 		all_trajectories = []
 		n = 0
 		while True:
-			if uf(0, 1) < 0.5:
-				y_offset = uf(0.08,0.12)
-			else:
-				y_offset = -uf(0.08,0.12)
+
 
 			done = False
 			# Reset z to 0,2 higher than intended because it adds +0.2 internally (possibly finger?)
 			# start = np.array([uf(xlow+0.03, xhigh-0.03), uf(ylow+0.03, yhigh-0.03), uf(zlow+0.03,zhigh-0.03)])
 			# goal = np.array([uf(xlow+0.03, xhigh-0.03), uf(ylow+0.03, yhigh-0.03), uf(zlow+0.03,zhigh-0.03)])
 
-			start = np.array([uf(xlow+0.03, xlow+0.035), uf(ylow+0.1, ylow+0.15), uf(zlow+0.03,zlow+0.035)])
+			start = np.array([uf(xlow+0.03, xlow+0.034), uf(ylow+0.1, ylow+0.15), uf(zlow+0.03,zlow+0.035)])
+			if start[1] < ylow+0.125:
+				y_offset = -uf(0.08,0.12)
+			else:
+				y_offset = uf(0.08,0.12)
 			goal = np.array([start[0]+ 0.15, start[1], start[2]-0.2])
-
+			switching_point_fraction = 1/uf(3.5,4.5)
 			state_, success = np.array(env._reset_positions(start))     #default [-0.100000,0.000000,0.070000]
 			state = state_[:3]
 			true_start_state = copy(state)
@@ -104,7 +110,7 @@ def main():
 			trajectory = {'action': [], 'state_aug': [], 'next_state_aug': []}
 			while (not done):
 				# print('state x: {}'.format(state[0]))
-				if state[0] < true_start_state[0] + (goal[0] - true_start_state[0]) / 4.0:
+				if state[0] < true_start_state[0] + (goal[0] - true_start_state[0]) * switching_point_fraction:
 					wp_goal = copy(goal)
 					wp_goal[0] = true_start_state[0] +(true_start_state[0]+goal[0])/4.0
 				elif state[0] < true_start_state[0] + (goal[0] - true_start_state[0]) * 2.0/3.0:

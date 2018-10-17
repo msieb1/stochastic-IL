@@ -17,6 +17,8 @@ from ipdb import set_trace
 from networks import VAE
 import argparse
 from os.path import join
+import matplotlib.pyplot as plt
+from copy import deepcopy as copy
 
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
@@ -25,9 +27,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=40)
 parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--learning_rate", type=float, default=0.001)
-parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 256])
-parser.add_argument("--decoder_layer_sizes", type=list, default=[256, 3])
-parser.add_argument("--latent_size", type=int, default=10)
+parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 128,256])
+parser.add_argument("--decoder_layer_sizes", type=list, default=[256, 128, 3])
+parser.add_argument("--latent_size", type=int, default=30)
 parser.add_argument("--print_every", type=int, default=100)
 parser.add_argument("--fig_root", type=str, default='figs')
 parser.add_argument("--conditional",type=bool, default=True)
@@ -40,8 +42,10 @@ MODEL_PATH = join(EXP_PATH, 'trained_weights')
 if not os.path.exists(MODEL_PATH):
     os.makedirs(MODEL_PATH)
 
-TRAIN_FILES = ['00451_a.pkl', '00451_b.pkl']
-VAL_FILES = ['00451_c.pkl']
+TRAIN_FILES = ['00251_a.pkl', '00251_b.pkl', '00251_d.pkl']
+VAL_FILES = ['00251_c.pkl']
+#TRAIN_FILES = ['00451_a.pkl', '00451_b.pkl']
+#VAL_FILES = ['00451_c.pkl']
 
 USE_CUDA = True
 
@@ -51,6 +55,10 @@ def to_var(x, use_cuda=True, volatile=False):
         x = x.cuda()
     return x
 
+def get_cmap(n, name='hsv'):
+    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
+    RGB color; the keyword argument name must be a standard mpl colormap name.'''
+    return plt.cm.get_cmap(name, n)
 
 def main():
 
@@ -59,6 +67,7 @@ def main():
     datasets = OrderedDict()
 
     train_set_x = []
+    train_trajectories  = []
     train_set_y = []
     val_set_x = []
     val_set_y = []
@@ -74,6 +83,16 @@ def main():
             for state_tuple in loaded_trajectory:       
                 val_set_x.extend(state_tuple['action'])
                 val_set_y.extend(state_tuple['state_aug'])
+
+    # Visualize trajectories in 2d:
+    #aa = copy(np.array(train_set_y))
+    #np.random.shuffle(aa)
+    #for ii, pt in enumerate(aa):
+     #   plt.scatter(pt[0], pt[1], s=0.2,c='b')
+      #  if ii > 5000:
+       #     break
+    #plt.show()
+    #set_trace()
 
     datasets['train'] = TensorDataset(torch.Tensor(train_set_x), torch.Tensor(train_set_y))
     datasets['val'] = TensorDataset(torch.Tensor(val_set_x), torch.Tensor(val_set_y))
@@ -105,7 +124,7 @@ def main():
     for epoch in range(args.epochs):
 
         tracker_epoch = defaultdict(lambda: defaultdict(dict))
-
+        print("Epoch: {}".format(epoch + 1))
         for split, dataset in datasets.items():
             if split == 'val':
                 print('validation:')
@@ -143,7 +162,7 @@ def main():
                 # tracker_global['it'] = torch.cat((tracker_global['it'], torch.Tensor([epoch*len(data_loader)+iteration])))
 
                 if iteration % args.print_every == 100 or iteration == len(data_loader)-1:
-                    print("Batch %04d/%i, Loss %9.4f"%(iteration, len(data_loader)-1, loss.data[0]))
+                    print("Batch {0:04d}/{1} Loss {2:9.4f}".format(iteration, len(data_loader)-1, loss.data[0]))
 
 
                     # if args.conditional:
