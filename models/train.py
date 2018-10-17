@@ -15,14 +15,33 @@ import os
 import pickle
 from ipdb import set_trace
 from networks import VAE
+import argparse
+from os.path import join
 
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
 
-SAVE_PATH = '../data'
+parser = argparse.ArgumentParser()
+parser.add_argument("--epochs", type=int, default=40)
+parser.add_argument("--batch_size", type=int, default=16)
+parser.add_argument("--learning_rate", type=float, default=0.001)
+parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 256])
+parser.add_argument("--decoder_layer_sizes", type=list, default=[256, 3])
+parser.add_argument("--latent_size", type=int, default=10)
+parser.add_argument("--print_every", type=int, default=100)
+parser.add_argument("--fig_root", type=str, default='figs')
+parser.add_argument("--conditional",type=bool, default=True)
+parser.add_argument('-e', '--expname', type=str, required=True)
+args = parser.parse_args()
 
-TRAIN_FILES = ['01051_a.pkl', '01051_b.pkl']
-VAL_FILES = ['01051_c.pkl']
+EXP_PATH = '../experiments/{}'.format(args.expname)
+SAVE_PATH = join(EXP_PATH, 'data')
+MODEL_PATH = join(EXP_PATH, 'trained_weights')
+if not os.path.exists(MODEL_PATH):
+    os.makedirs(MODEL_PATH)
+
+TRAIN_FILES = ['00451_a.pkl', '00451_b.pkl']
+VAL_FILES = ['00451_c.pkl']
 
 USE_CUDA = True
 
@@ -33,7 +52,7 @@ def to_var(x, use_cuda=True, volatile=False):
     return x
 
 
-def main(args):
+def main():
 
     ts = time.time()
 
@@ -152,7 +171,7 @@ def main(args):
                     # plt.clf()
                     # plt.close()
         if (epoch + 1) % 4 == 0:
-            torch.save(vae.state_dict(), '/home/msieb/projects/CVAE/trained_weights_2/epoch_{}.pk'.format(epoch))
+            torch.save(vae.state_dict(), join(MODEL_PATH, 'epoch_{}.pk'.format(epoch)))
             # df = pd.DataFrame.from_dict(tracker_epoch, orient='index')
             # g = sns.lmplot(x='x', y='y', hue='label', data=df.groupby('label').head(100), fit_reg=False, legend=True)
             # g.savefig(os.path.join(args.fig_root, str(ts), "E%i-Dist.png"%epoch), dpi=300)
@@ -160,17 +179,4 @@ def main(args):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=40)
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--learning_rate", type=float, default=0.001)
-    parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 256])
-    parser.add_argument("--decoder_layer_sizes", type=list, default=[256, 3])
-    parser.add_argument("--latent_size", type=int, default=10)
-    parser.add_argument("--print_every", type=int, default=100)
-    parser.add_argument("--fig_root", type=str, default='figs')
-    parser.add_argument("--conditional",type=bool, default=True)
-
-    args = parser.parse_args()
-
-main(args)
+    main()
