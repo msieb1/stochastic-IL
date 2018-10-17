@@ -16,7 +16,7 @@ import argparse
 import torch
 import sys
 
-sys.path.append('/home/msieb/Downloads/nips_workshop_code/models')
+sys.path.append('../models')
 from networks import VAE
 
 np.set_printoptions(precision=4)

@@ -4,7 +4,7 @@ import torch
 import argparse
 import numpy as np
 import pandas as pd
-import seaborn as sns
+# import seaborn as sns
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from torchvision.datasets import MNIST
@@ -21,7 +21,8 @@ import matplotlib.pyplot as plt
 from copy import deepcopy as copy
 
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
-os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
+# os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
+os.environ["CUDA_VISIBLE_DEVICES"]= "0"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=40)
@@ -42,10 +43,23 @@ MODEL_PATH = join(EXP_PATH, 'trained_weights')
 if not os.path.exists(MODEL_PATH):
     os.makedirs(MODEL_PATH)
 
-TRAIN_FILES = ['00251_a.pkl', '00251_b.pkl', '00251_d.pkl']
-VAL_FILES = ['00251_c.pkl']
-#TRAIN_FILES = ['00451_a.pkl', '00451_b.pkl']
-#VAL_FILES = ['00451_c.pkl']
+# find highest pickle number and get all runs, get at least 4 runs to do val split
+seq_names = [int(i.split('.')[0][:5]) for i in os.listdir(SAVE_PATH)]
+latest_seq = sorted(map(int, seq_names), reverse=True)[0]
+TRAIN_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('{0:05d}'.format(latest_seq))]
+print TRAIN_FILES
+VAL_FILES = []
+if len(TRAIN_FILES) >= 4:
+    num_val = int(len(TRAIN_FILES) * 1./ 4)
+    VAL_FILES = TRAIN_FILES[len(TRAIN_FILES) - num_val:]
+    TRAIN_FILES = TRAIN_FILES[:len(TRAIN_FILES) - num_val]
+
+# if args.expname == 'mm_sep':
+#     TRAIN_FILES = ['00251_a.pkl', '00251_b.pkl', '00251_d.pkl']
+#     VAL_FILES = ['00251_c.pkl']
+# if args.expname == 'multimodal':
+#     TRAIN_FILES = ['00451_a.pkl', '00451_b.pkl']
+#     VAL_FILES = ['00451_c.pkl']
 
 USE_CUDA = True
 
@@ -85,14 +99,18 @@ def main():
                 val_set_y.extend(state_tuple['state_aug'])
 
     # Visualize trajectories in 2d:
-    #aa = copy(np.array(train_set_y))
-    #np.random.shuffle(aa)
-    #for ii, pt in enumerate(aa):
-     #   plt.scatter(pt[0], pt[1], s=0.2,c='b')
-      #  if ii > 5000:
-       #     break
-    #plt.show()
-    #set_trace()
+    # aa = copy(np.array(train_set_y))
+    # np.random.shuffle(aa)
+    # for ii, pt in enumerate(aa):
+    for ii, pt in enumerate(np.random.choice(train_set_y)):
+        # plt.scatter(pt[0], pt[1], s=0.2,c='b')
+        plt.scatter(pt[0], pt[1], s=0.2,c='b')
+        # if ii > 5000:
+        #     break
+    plt.savefig(os.path.join(EXP_PATH, '{}_traj_plot.pdf'.format(args.expname)))
+    plt.show()
+    # return
+    set_trace()
 
     datasets['train'] = TensorDataset(torch.Tensor(train_set_x), torch.Tensor(train_set_y))
     datasets['val'] = TensorDataset(torch.Tensor(val_set_x), torch.Tensor(val_set_y))
@@ -164,31 +182,6 @@ def main():
                 if iteration % args.print_every == 100 or iteration == len(data_loader)-1:
                     print("Batch {0:04d}/{1} Loss {2:9.4f}".format(iteration, len(data_loader)-1, loss.data[0]))
 
-
-                    # if args.conditional:
-                    #     c=to_var(torch.arange(0,10).long().view(-1,1))
-                    #     x = vae.inference(n=c.size(0), c=c)
-                    # else:
-                    #     x = vae.inference(n=10)
-
-                    # plt.figure()
-                    # plt.figure(figsize=(5,10))
-                    # for p in range(10):
-                    #     plt.subplot(5,2,p+1)
-                    #     if args.conditional:
-                    #         plt.text(0,0,"c=%i"%c.data[p][0], color='black', backgroundcolor='white', fontsize=8)
-                    #     plt.imshow(x[p].view(28,28).data.numpy())
-                    #     plt.axis('off')
-
-
-                    # if not os.path.exists(os.path.join(args.fig_root, str(ts))):
-                    #     if not(os.path.exists(os.path.join(args.fig_root))):
-                    #         os.mkdir(os.path.join(args.fig_root))
-                    #     os.mkdir(os.path.join(args.fig_root, str(ts)))
-
-                    # plt.savefig(os.path.join(args.fig_root, str(ts), "E%iI%i.png"%(epoch, iteration)), dpi=300)
-                    # plt.clf()
-                    # plt.close()
         if (epoch + 1) % 4 == 0:
             torch.save(vae.state_dict(), join(MODEL_PATH, 'epoch_{}.pk'.format(epoch)))
             # df = pd.DataFrame.from_dict(tracker_epoch, orient='index')

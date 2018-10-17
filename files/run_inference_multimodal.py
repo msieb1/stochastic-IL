@@ -16,7 +16,7 @@ import argparse
 import torch
 import sys
 
-sys.path.append('/home/msieb/Downloads/nips_workshop_code/models')
+sys.path.append('../models')
 from networks import VAE
 
 np.set_printoptions(precision=4)
@@ -27,8 +27,6 @@ ylow = -0.2
 yhigh = 0.2
 zlow = 0.3
 zhigh = 0.6
-
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--task', dest='task', type=str, default='reach')
@@ -54,23 +52,6 @@ if USE_CUDA:
 
 def normalize(a):
     return a/np.linalg.norm(a)
-
-def save_trajectory(file, savepath, seqname=None):
-    if seqname is not None:
-        seqname = seqname
-    else:
-      # If there's no video directory, this is the first sequence.
-      if not os.listdir(savepath):
-        seqname = '0'
-      else:
-        # Otherwise, get the latest sequence name and increment it.
-        seq_names = [int(i.split('.')[0]) for i in os.listdir(savepath)]
-        latest_seq = sorted(map(int, seq_names), reverse=True)[0]
-        seqname = str(latest_seq+1)
-      print('No seqname specified, using: %s' % seqname)
-    with open(join(savepath, '{0:05d}_{1}}.pkl'.format(int(seqname), args.runname)), 'wb') as f:
-        pickle.dump(file, f)
-
 
 def main():
     env = KukaGymEnv(renders=True,isDiscrete=False, maxSteps = 10000000)
@@ -142,7 +123,6 @@ def main():
                 done = True
             if ii > 200:
                 break
-
 
 if __name__=="__main__":
     main()

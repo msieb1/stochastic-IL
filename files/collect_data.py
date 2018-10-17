@@ -13,6 +13,7 @@ import pickle
 from os.path import join
 from numpy import concatenate as cat
 import argparse
+import matplotlib.pyplot as plt
 np.set_printoptions(precision=4)
 
 xlow = 0.4
@@ -22,11 +23,23 @@ yhigh = 0.2
 zlow = 0.3
 zhigh = 0.6
 
-SAVE_PATH = '/home/msieb/projects/CVAE/data'
+# SAVE_PATH = '/home/msieb/projects/CVAE/data'
+
+# parser = argparse.ArgumentParser()
+# parser.add_argument('-r', '--runname', type=str, required=True)
+# args = parser.parse_args()
 
 parser = argparse.ArgumentParser()
+parser.add_argument('-e', '--expname', type=str, required=True)
 parser.add_argument('-r', '--runname', type=str, required=True)
 args = parser.parse_args()
+
+EXP_PATH = '../experiments/{}'.format(args.expname)
+SAVE_PATH = join(EXP_PATH, 'data')
+MODEL_PATH = join(EXP_PATH, 'trained_weights')
+
+if not os.path.exists(SAVE_PATH):
+    os.makedirs(SAVE_PATH)
 
 def normalize(a):
 	return a/np.linalg.norm(a)
