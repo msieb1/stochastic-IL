@@ -36,6 +36,7 @@ parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 128,256])
 parser.add_argument("--decoder_layer_sizes", type=list, default=[256,128, 3])
 parser.add_argument("--latent_size", type=int, default=30)
 parser.add_argument('-e', '--expname', type=str, required=True)
+parser.add_argument('-ep', '--epoch', type=int, required=True)
 
 args = parser.parse_args()
 
@@ -44,9 +45,9 @@ SAVE_PATH = join(EXP_PATH, 'data')
 MODEL_PATH = join(EXP_PATH, 'trained_weights')
 
 USE_CUDA = True
-EPOCH=7
+
 model = VAE(encoder_layer_sizes=args.encoder_layer_sizes, latent_size=args.latent_size, decoder_layer_sizes=args.decoder_layer_sizes, conditional=True, num_labels=6)
-model.load_state_dict(torch.load(join(MODEL_PATH, 'epoch_{}.pk'.format(EPOCH)), map_location=lambda storage, loc: storage))
+model.load_state_dict(torch.load(join(MODEL_PATH, 'epoch_{}.pk'.format(args.epoch)), map_location=lambda storage, loc: storage))
 if USE_CUDA:
     model = model.cuda()
 
@@ -62,10 +63,10 @@ def main():
     while True:
         done = False
         # Reset z to 0,2 higher than intended because it adds +0.2 internally (possibly finger?)
-        start = np.array([uf(xlow+0.03, xlow+0.034), uf(ylow+0.1, ylow+0.15), uf(zlow+0.03,zlow+0.035)])
-        goal = np.array([start[0]+ 0.15, start[1], start[2]-0.2])
+        start = np.array([xlow+0.044, uf(ylow+0.11, ylow+0.14), uf(zlow+0.032,zlow+0.03)])
         state_, success = np.array(env._reset_positions(start))     #default [-0.100000,0.000000,0.070000]
         state = state_[:3]
+        goal = np.array([start[0] + uf(0.18, 0.22), uf(ylow+0.12, ylow+0.13), uf(zlow+0.025,zlow+0.035) - 0.2])
 
         action = normalize(goal - state)*0.001
         eps = 0.01

@@ -1,5 +1,6 @@
 #add parent dir to find package. Only needed for source code build, pip install doesn't need it.
 import os, inspect
+import sys
 from kukaGymEnvReach import KukaGymEnvReach as KukaGymEnv
 import time
 
@@ -27,10 +28,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-e', '--expname', type=str, required=True)
 parser.add_argument('-r', '--runname', type=str, required=True)
 args = parser.parse_args()
-
-BASE_DIR = '/'.join(os.path.realpath(__file__).split('/')[:-3])
+BASE_DIR = '/'.join(os.path.realpath(__file__).split('/')[:-2])
 EXP_PATH = join(BASE_DIR, 'experiments/{}'.format(args.expname))
 SAVE_PATH = join(EXP_PATH, 'data')
+print("Saving to {}".format(SAVE_PATH))
 MODEL_PATH = join(EXP_PATH, 'trained_weights')
 
 if not os.path.exists(SAVE_PATH):
@@ -52,11 +53,11 @@ def save_trajectory(file, savepath, seqname=None):
             latest_seq = sorted(map(int, seq_names), reverse=True)[0]
             seqname = str(latest_seq+1)
         print('No seqname specified, using: %s' % seqname)
-    with open(join(savepath, '{0:05d}_{1}.pkl'.format(int(seqname), args.runname)), 'wb') as f:
+    with open(join(savepath, '{0}_{1}.pkl'.format(seqname, args.runname)), 'wb') as f:
         pickle.dump(file, f)
 
 def main():
-    env = KukaGymEnv(renders=True,isDiscrete=False, maxSteps = 10000000)
+    env = KukaGymEnv(renders=False,isDiscrete=False, maxSteps = 10000000)
         
     try:  
         motorsIds=[]
@@ -76,21 +77,38 @@ def main():
             # goal = np.array([uf(xlow+0.03, xhigh-0.03), uf(ylow+0.03, yhigh-0.03), uf(zlow+0.03,zhigh-0.03)])
 
             # start = np.array([uf(xlow+0.03, xlow+0.034), uf(ylow+0.1, ylow+0.15), uf(zlow+0.03,zlow+0.035)])
-            start = np.array([xlow+0.032, uf(ylow+0.1, ylow+0.15), uf(zlow+0.03,zlow+0.035)])
+            start = np.array([xlow+0.032, uf(ylow+0.1, ylow+0.15), uf(zlow+0.02,zlow+0.04)])
             if start[1] < ylow+0.125:
                 y_offset = -uf(0.08,0.12)
             else:
                 y_offset = uf(0.08,0.12)
-            goal = np.array([start[0]+ 0.15, start[1], start[2]-0.2])
+
+            if start[1] < ylow+0.125:
+
+                branching_scale = -uf(0.004, 0.012)
+            else:
+                branching_scale = +uf(0.004, 0.012)
+               
             # switching_point_fraction = 1/uf(3.5,4.5)
-            switching_point_fraction = 0.25
+            switching_point_fraction = 0.5
             state_, success = np.array(env._reset_positions(start))     #default [-0.100000,0.000000,0.070000]
             state = state_[:3]
             true_start_state = copy(state)
+            # Specify agent goals
+            goal = np.array([start[0]+ 0.2, start[1], start[2]])
+            set_trace()
+            wp_goal = copy(goal)
+            # wp_goal[2] = true_start_state[2]
+            branched_goal_wp = true_start_state[1] + y_offset
+
             action = normalize(goal - state)*0.001
             eps = 0.01
             action = action.tolist()
             action += [0,0]
+
+            np.save(join(SAVE_PATH, "start.npy"), start)
+            np.save(join(SAVE_PATH, 'goal.npy'), goal)           
+
             if not success:
                 env._reset()
                 continue
@@ -106,15 +124,17 @@ def main():
             while (not done):
                 # print('state x: {}'.format(state[0]))
                 if state[0] < true_start_state[0] + (goal[0] - true_start_state[0]) * switching_point_fraction:
-                    wp_goal = copy(goal)
-                    wp_goal[0] = true_start_state[0] +(true_start_state[0]+goal[0])/4.0
-                elif state[0] < true_start_state[0] + (goal[0] - true_start_state[0]) * 2.0/3.0:
+                    #wp_goal = copy(goal)
+                    wp_goal[1] += branching_scale
+                    #wp_goal[0] = true_start_state[0] +(true_start_state[0]+goal[0])/4.0
+                elif state[0] < true_start_state[0] + (goal[0] - true_start_state[0]) * 1:
                     # print('branched off')
-
-                    wp_goal = copy(goal)
-                    wp_goal[0] = true_start_state[0] + (goal[0] - true_start_state[0]) * 2.0/3.0
-                    wp_goal[1] = true_start_state[1] + y_offset
-                                        
+                    #wp_goal = copy(goal)
+                    #wp_goal[0] = true_start_state[0] + (goal[0] - true_start_state[0]) * 2.0/3.0
+                    #wp_goal[1] = true_start_state[1] + y_offset
+                    wp_goal[1] = goal[1]
+                    wp_goal[0] += 0.01
+                    pass
                 else:
                     # print('branch back in')
                     wp_goal = copy(goal)
@@ -127,13 +147,13 @@ def main():
                 state = state_[:3]
                 state = np.array(state)
                 #obs = env.getExtendedObservation()
-                if ii % 1 == 0:
+                if ii % 10 == 0:
                     # print('normed executed action: {}'.format((state - state_old[:3])/np.linalg.norm(state - state_old[:3])))
                     # print('executed action:{}'.format(state - state_old[:3]))
-                    # print("\n")
+                    print("\n")
                     print('current state: {}'.format(state))
                     print('goal state: {}'.format(goal))
-                    print('action: {}'.format(action[:3]))
+                    # print('action: {}'.format(action[:3]))
                     pass
                 ii += 1
 
@@ -153,11 +173,12 @@ def main():
                     print("collected {} trajectories".format(n+1))
 
                 if n % 50 == 0:
-                    print("save trajectories")
-                    save_trajectory(all_trajectories, SAVE_PATH, 'newest_backup')
+                    # print("save trajectories")
+                    save_trajectory(all_trajectories, SAVE_PATH, 'backup')
                 if n % 50 == 0:
-                    print("save trajectories")
                     save_trajectory(all_trajectories, SAVE_PATH, 'newest')
+                    print("saved trajectories")
+
                 n += 1
     except KeyboardInterrupt:
         pass
