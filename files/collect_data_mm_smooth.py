@@ -84,7 +84,6 @@ def main():
                 y_offset = uf(0.08,0.12)
 
             if start[1] < ylow+0.125:
-
                 branching_scale = -uf(0.004, 0.012)
             else:
                 branching_scale = +uf(0.004, 0.012)
@@ -96,7 +95,7 @@ def main():
             true_start_state = copy(state)
             # Specify agent goals
             goal = np.array([start[0]+ 0.2, start[1], start[2]])
-            set_trace()
+            # set_trace()
             wp_goal = copy(goal)
             # wp_goal[2] = true_start_state[2]
             branched_goal_wp = true_start_state[1] + y_offset
@@ -142,7 +141,7 @@ def main():
                 action[:3] = normalize(wp_goal - state)*0.005
 
                 state_old = copy(state)
-                state_old_aug = cat([state, goal])
+                state_old_aug = cat([state_old, goal])
                 state_, reward, done, info = env.step2(action)
                 state = state_[:3]
                 state = np.array(state)
@@ -150,18 +149,18 @@ def main():
                 if ii % 10 == 0:
                     # print('normed executed action: {}'.format((state - state_old[:3])/np.linalg.norm(state - state_old[:3])))
                     # print('executed action:{}'.format(state - state_old[:3]))
-                    print("\n")
-                    print('current state: {}'.format(state))
-                    print('goal state: {}'.format(goal))
+                    # print("\n")
+                    # print('current state: {}'.format(state))
+                    # print('goal state: {}'.format(goal))
                     # print('action: {}'.format(action[:3]))
                     pass
                 ii += 1
 
                 time.sleep(0.01)
-                # set_trace()
-                trajectory['action'].append(action)
+                trajectory['action'].append(copy(action))
                 trajectory['state_aug'].append(state_old_aug)
                 trajectory['next_state_aug'].append(cat([state, goal]))
+
                 if np.linalg.norm(goal - state) < eps:
                     done = True
                 if ii >= 1000:

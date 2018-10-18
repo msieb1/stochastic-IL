@@ -30,15 +30,18 @@ zhigh = 0.6
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--task', dest='task', type=str, default='reach')
-parser.add_argument("--batch_size", type=int, default=16)
 parser.add_argument("--learning_rate", type=float, default=0.001)
 parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 128,256])
 parser.add_argument("--decoder_layer_sizes", type=list, default=[256,128, 3])
 parser.add_argument("--latent_size", type=int, default=30)
 parser.add_argument('-e', '--expname', type=str, required=True)
+parser.add_argument("-cu", "--cuda_visible_devices",type=str, default="1,2")
 parser.add_argument('-ep', '--epoch', type=int, required=True)
 
 args = parser.parse_args()
+
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"]=args.cuda_visible_devices
 
 EXP_PATH = join(BASE_DIR, 'experiments/{}'.format(args.expname))
 SAVE_PATH = join(EXP_PATH, 'data')

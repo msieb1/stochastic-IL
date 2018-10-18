@@ -35,21 +35,26 @@ parser.add_argument("--learning_rate", type=float, default=0.001)
 parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 128,256])
 parser.add_argument("--decoder_layer_sizes", type=list, default=[256,128, 3])
 parser.add_argument("--latent_size", type=int, default=30)
+parser.add_argument('-c', "--ckpt_epoch_num", type=int, default=31)
+parser.add_argument("-cu", "--cuda_visible_devices",type=str, default="1,2")
 parser.add_argument('-e', '--expname', type=str, required=True)
 
 args = parser.parse_args()
+
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"]=args.cuda_visible_devices
 
 EXP_PATH = join(BASE_DIR, 'experiments/{}'.format(args.expname))
 SAVE_PATH = join(EXP_PATH, 'data')
 MODEL_PATH = join(EXP_PATH, 'trained_weights')
 
 USE_CUDA = True
-EPOCH=7
+EPOCH=args.ckpt_epoch_num
 model = VAE(encoder_layer_sizes=args.encoder_layer_sizes, latent_size=args.latent_size, decoder_layer_sizes=args.decoder_layer_sizes, conditional=True, num_labels=6)
 model.load_state_dict(torch.load(join(MODEL_PATH, 'epoch_{}.pk'.format(EPOCH)), map_location=lambda storage, loc: storage))
+
 if USE_CUDA:
     model = model.cuda()
-
 def normalize(a):
     return a/np.linalg.norm(a)
 

@@ -14,20 +14,14 @@ from collections import OrderedDict, defaultdict
 from os.path import join
 import os
 import pickle
+import random
 from ipdb import set_trace
 from networks import VAE
 import argparse
 from os.path import join
 import matplotlib.pyplot as plt
 from copy import deepcopy as copy
-
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
-# os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
-os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
-
-
-
-
+from logger import Logger
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=40)
@@ -39,8 +33,12 @@ parser.add_argument("--latent_size", type=int, default=30)
 parser.add_argument("--print_every", type=int, default=100)
 parser.add_argument("--fig_root", type=str, default='figs')
 parser.add_argument("--conditional",type=bool, default=True)
+parser.add_argument("-cu", "--cuda_visible_devices",type=str, default="1,2")
 parser.add_argument('-e', '--expname', type=str, required=True)
 args = parser.parse_args()
+
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"]=args.cuda_visible_devices
 
 BASE_DIR = '/'.join(os.path.realpath(__file__).split('/')[:-2])
 EXP_PATH = join(BASE_DIR, 'experiments/{}'.format(args.expname))
@@ -48,26 +46,11 @@ SAVE_PATH = join(EXP_PATH, 'data')
 MODEL_PATH = join(EXP_PATH, 'trained_weights')
 if not os.path.exists(MODEL_PATH):
     os.makedirs(MODEL_PATH)
+LOG_PATH = join('tb', args.expname)
+if not os.path.exists(LOG_PATH):
+    os.makedirs(LOG_PATH)
 
-# find highest pickle number and get all runs, get at least 4 runs to do val split
-# seq_names = [int(i.split('.')[0][:5]) for i in os.listdir(SAVE_PATH)]
-# latest_seq = sorted(map(int, seq_names), reverse=True)[0]
-# TRAIN_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('{0:05d}'.format(latest_seq))]
-# print(TRAIN_FILES)
-# VAL_FILES = []
-# if len(TRAIN_FILES) >= 4:
-#     num_val = int(len(TRAIN_FILES) * 1./ 4)
-#     VAL_FILES = TRAIN_FILES[len(TRAIN_FILES) - num_val:]
-#     TRAIN_FILES = TRAIN_FILES[:len(TRAIN_FILES) - num_val]
-
-
-TRAIN_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('newest')]
-print(TRAIN_FILES)
-VAL_FILES = []
-if len(TRAIN_FILES) >= 6:
-    num_val = int(len(TRAIN_FILES) * 1./ 4)
-    VAL_FILES = TRAIN_FILES[len(TRAIN_FILES) - num_val:]
-    TRAIN_FILES = TRAIN_FILES[:len(TRAIN_FILES) - num_val]
+PKL_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('newest')]
 
 USE_CUDA = True
 
@@ -76,11 +59,6 @@ def to_var(x, use_cuda=True, volatile=False):
     if use_cuda:
         x = x.cuda()
     return x
-
-def get_cmap(n, name='hsv'):
-    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
-    RGB color; the keyword argument name must be a standard mpl colormap name.'''
-    return plt.cm.get_cmap(name, n)
 
 def main():
 
@@ -93,34 +71,31 @@ def main():
     train_set_y = []
     val_set_x = []
     val_set_y = []
-    for file in TRAIN_FILES:
+    for file in PKL_FILES:
         with open(join(SAVE_PATH, file), 'rb') as f:
             loaded_trajectory = pickle.load(f) 
             for state_tuple in loaded_trajectory:       
                 train_set_x.extend(state_tuple['action'])
                 train_set_y.extend(state_tuple['state_aug'])
-    for file in VAL_FILES:
-        with open(join(SAVE_PATH, file), 'rb') as f:
-            loaded_trajectory = pickle.load(f) 
-            for state_tuple in loaded_trajectory:       
-                val_set_x.extend(state_tuple['action'])
-                val_set_y.extend(state_tuple['state_aug'])
+    print len(train_set_x)
+    
+    num_val = int(len(train_set_x) * 0.2)
+    num_train = len(train_set_x) - num_val
+    val_set_x = train_set_x[num_train : ]
+    val_set_y = train_set_y[num_train : ]
+    train_set_x = train_set_x[: num_train]
+    train_set_y = train_set_y[: num_train]
 
     # Visualize trajectories in 2d:
-    # aa = copy(np.array(train_set_y))
-    # np.random.shuffle(aa)
-    # for ii, pt in enumerate(aa):
     fig = plt.figure()
     # ax = fig.add_subplot(111, projection='3d')    
-    ind = np.random.choice(len(train_set_y), 5000, replace=False)  
+    ind = np.random.choice(len(train_set_y), min(len(train_set_y), 5000), replace=False)  
     for ii, pt in enumerate(np.array(train_set_y)[ind]):
         plt.scatter(pt[0], pt[1], s=0.2,c='b')
-        # ax.scatter(pt[0], pt[1], pt[2], s=0.2, c='b')
-        # if ii > 5000:
-        #     break
     plt.savefig(os.path.join(EXP_PATH, '{}_traj_plot.pdf'.format(args.expname)))
     # plt.show()
     # set_trace()
+    # return
 
     datasets['train'] = TensorDataset(torch.Tensor(train_set_x), torch.Tensor(train_set_y))
     datasets['val'] = TensorDataset(torch.Tensor(val_set_x), torch.Tensor(val_set_y))
@@ -144,13 +119,7 @@ def main():
         vae = vae.cuda()
 
     optimizer = torch.optim.SGD(vae.parameters(), lr=args.learning_rate, momentum=0.9)
-
-
-    tracker_global = defaultdict(torch.FloatTensor)
-    tracker_global['loss'] = 0
-    tracker_global['it'] = 0
     tot_iteration = 0
-
     for epoch in range(args.epochs):
 
         tracker_epoch = defaultdict(lambda: defaultdict(dict))
@@ -173,14 +142,6 @@ def main():
                     recon_x, mean, log_var, z = vae(x, y)
                 else:
                     recon_x, mean, log_var, z = vae(x)
-
-                # for i, yi in enumerate(y.data):
-                #     # set_trace()
-                #     id = len(tracker_epoch)
-                #     tracker_epoch[id]['x'] = z[i, 0].data[0]
-                #     tracker_epoch[id]['y'] = z[i, 1].data[0]
-                #     tracker_epoch[id]['label'] = yi[0]
-                #     pass
 
                 loss = loss_fn(recon_x, x, mean, log_var)
 

@@ -138,7 +138,7 @@ def run_worker(seq):
                 action[:3] = normalize(wp_goal - state)*0.005
 
                 state_old = copy(state)
-                state_old_aug = cat([state, goal])
+                state_old_aug = cat([state_old, goal])
                 state_, reward, done, info = env.step2(action)
                 state = state_[:3]
                 state = np.array(state)
@@ -155,7 +155,7 @@ def run_worker(seq):
 
                 time.sleep(0.01)
                 # set_trace()
-                trajectory['action'].append(action)
+                trajectory['action'].append(copy(action))
                 trajectory['state_aug'].append(state_old_aug)
                 trajectory['next_state_aug'].append(cat([state, goal]))
                 if np.linalg.norm(goal - state) < eps:
