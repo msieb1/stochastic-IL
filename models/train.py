@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import pandas as pd
 # import seaborn as sns
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from torchvision.datasets import MNIST
@@ -30,7 +31,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=40)
-parser.add_argument("--batch_size", type=int, default=16)
+parser.add_argument("--batch_size", type=int, default=32)
 parser.add_argument("--learning_rate", type=float, default=0.001)
 parser.add_argument("--encoder_layer_sizes", type=list, default=[3, 128,256])
 parser.add_argument("--decoder_layer_sizes", type=list, default=[256, 128, 3])
@@ -49,22 +50,24 @@ if not os.path.exists(MODEL_PATH):
     os.makedirs(MODEL_PATH)
 
 # find highest pickle number and get all runs, get at least 4 runs to do val split
-seq_names = [int(i.split('.')[0][:5]) for i in os.listdir(SAVE_PATH)]
-latest_seq = sorted(map(int, seq_names), reverse=True)[0]
-TRAIN_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('{0:05d}'.format(latest_seq))]
+# seq_names = [int(i.split('.')[0][:5]) for i in os.listdir(SAVE_PATH)]
+# latest_seq = sorted(map(int, seq_names), reverse=True)[0]
+# TRAIN_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('{0:05d}'.format(latest_seq))]
+# print(TRAIN_FILES)
+# VAL_FILES = []
+# if len(TRAIN_FILES) >= 4:
+#     num_val = int(len(TRAIN_FILES) * 1./ 4)
+#     VAL_FILES = TRAIN_FILES[len(TRAIN_FILES) - num_val:]
+#     TRAIN_FILES = TRAIN_FILES[:len(TRAIN_FILES) - num_val]
+
+
+TRAIN_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('newest')]
 print(TRAIN_FILES)
 VAL_FILES = []
-if len(TRAIN_FILES) >= 4:
+if len(TRAIN_FILES) >= 6:
     num_val = int(len(TRAIN_FILES) * 1./ 4)
     VAL_FILES = TRAIN_FILES[len(TRAIN_FILES) - num_val:]
     TRAIN_FILES = TRAIN_FILES[:len(TRAIN_FILES) - num_val]
-
-# if args.expname == 'mm_sep':
-#     TRAIN_FILES = ['00251_a.pkl', '00251_b.pkl', '00251_d.pkl']
-#     VAL_FILES = ['00251_c.pkl']
-# if args.expname == 'multimodal':
-#     TRAIN_FILES = ['00451_a.pkl', '00451_b.pkl']
-#     VAL_FILES = ['00451_c.pkl']
 
 USE_CUDA = True
 
@@ -107,19 +110,21 @@ def main():
     # aa = copy(np.array(train_set_y))
     # np.random.shuffle(aa)
     # for ii, pt in enumerate(aa):
+    fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')    
     ind = np.random.choice(len(train_set_y), 5000, replace=False)  
     for ii, pt in enumerate(np.array(train_set_y)[ind]):
-        # plt.scatter(pt[0], pt[1], s=0.2,c='b')
         plt.scatter(pt[0], pt[1], s=0.2,c='b')
+        # ax.scatter(pt[0], pt[1], pt[2], s=0.2, c='b')
         # if ii > 5000:
         #     break
     plt.savefig(os.path.join(EXP_PATH, '{}_traj_plot.pdf'.format(args.expname)))
     # plt.show()
-    # # return
     # set_trace()
 
     datasets['train'] = TensorDataset(torch.Tensor(train_set_x), torch.Tensor(train_set_y))
     datasets['val'] = TensorDataset(torch.Tensor(val_set_x), torch.Tensor(val_set_y))
+    logger = Logger(LOG_PATH)
 
     def loss_fn(recon_x, x, mean, log_var):
         #BCE = torch.nn.functional.binary_cross_entropy(recon_x, x, size_average=False)
@@ -138,15 +143,18 @@ def main():
     if USE_CUDA:
         vae = vae.cuda()
 
-    optimizer = torch.optim.Adam(vae.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.SGD(vae.parameters(), lr=args.learning_rate, momentum=0.9)
 
 
     tracker_global = defaultdict(torch.FloatTensor)
     tracker_global['loss'] = 0
     tracker_global['it'] = 0
+    tot_iteration = 0
+
     for epoch in range(args.epochs):
 
         tracker_epoch = defaultdict(lambda: defaultdict(dict))
+        print('-'*10)
         print("Epoch: {}".format(epoch + 1))
         for split, dataset in datasets.items():
             if split == 'val':
@@ -180,18 +188,18 @@ def main():
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
-
-                # tracker_global['loss'] = torch.cat((tracker_global['loss'], loss.data/x.size(0)))
-                # tracker_global['it'] = torch.cat((tracker_global['it'], torch.Tensor([epoch*len(data_loader)+iteration])))
+                    if tot_iteration % 100 == 0:
+                        logger.scalar_summary('train_loss', loss.data.item(), tot_iteration)
+                else:
+                    if tot_iteration % 100 == 0:
+                        logger.scalar_summary('val_loss', loss.data.item(), tot_iteration)
 
                 if iteration % args.print_every == 100 or iteration == len(data_loader)-1:
-                    print("Batch {0:04d}/{1} Loss {2:9.4f}".format(iteration, len(data_loader)-1, loss.data[0]))
+                    print("Batch {0:04d}/{1} Loss {2:9.4f}".format(iteration, len(data_loader)-1, loss.data.item()))
+                tot_iteration += 1
 
-        if (epoch + 1) % 4 == 0:
+        if epoch and epoch % 5 == 0:
             torch.save(vae.state_dict(), join(MODEL_PATH, 'epoch_{}.pk'.format(epoch)))
-            # df = pd.DataFrame.from_dict(tracker_epoch, orient='index')
-            # g = sns.lmplot(x='x', y='y', hue='label', data=df.groupby('label').head(100), fit_reg=False, legend=True)
-            # g.savefig(os.path.join(args.fig_root, str(ts), "E%i-Dist.png"%epoch), dpi=300)
             print("saving weights...")
 
 if __name__ == '__main__':
