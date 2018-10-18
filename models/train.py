@@ -22,7 +22,11 @@ from copy import deepcopy as copy
 
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 # os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
-os.environ["CUDA_VISIBLE_DEVICES"]= "0"
+os.environ["CUDA_VISIBLE_DEVICES"]= "1,2"
+
+
+
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=40)
@@ -37,7 +41,8 @@ parser.add_argument("--conditional",type=bool, default=True)
 parser.add_argument('-e', '--expname', type=str, required=True)
 args = parser.parse_args()
 
-EXP_PATH = '../experiments/{}'.format(args.expname)
+BASE_DIR = '/'.join(os.path.realpath(__file__).split('/')[:-2])
+EXP_PATH = join(BASE_DIR, 'experiments/{}'.format(args.expname))
 SAVE_PATH = join(EXP_PATH, 'data')
 MODEL_PATH = join(EXP_PATH, 'trained_weights')
 if not os.path.exists(MODEL_PATH):
@@ -47,7 +52,7 @@ if not os.path.exists(MODEL_PATH):
 seq_names = [int(i.split('.')[0][:5]) for i in os.listdir(SAVE_PATH)]
 latest_seq = sorted(map(int, seq_names), reverse=True)[0]
 TRAIN_FILES = [i for i in os.listdir(SAVE_PATH) if i.startswith('{0:05d}'.format(latest_seq))]
-print TRAIN_FILES
+print(TRAIN_FILES)
 VAL_FILES = []
 if len(TRAIN_FILES) >= 4:
     num_val = int(len(TRAIN_FILES) * 1./ 4)
@@ -102,15 +107,16 @@ def main():
     # aa = copy(np.array(train_set_y))
     # np.random.shuffle(aa)
     # for ii, pt in enumerate(aa):
-    for ii, pt in enumerate(np.random.choice(train_set_y)):
+    ind = np.random.choice(len(train_set_y), 5000, replace=False)  
+    for ii, pt in enumerate(np.array(train_set_y)[ind]):
         # plt.scatter(pt[0], pt[1], s=0.2,c='b')
         plt.scatter(pt[0], pt[1], s=0.2,c='b')
         # if ii > 5000:
         #     break
     plt.savefig(os.path.join(EXP_PATH, '{}_traj_plot.pdf'.format(args.expname)))
-    plt.show()
-    # return
-    set_trace()
+    # plt.show()
+    # # return
+    # set_trace()
 
     datasets['train'] = TensorDataset(torch.Tensor(train_set_x), torch.Tensor(train_set_y))
     datasets['val'] = TensorDataset(torch.Tensor(val_set_x), torch.Tensor(val_set_y))
@@ -138,7 +144,6 @@ def main():
     tracker_global = defaultdict(torch.FloatTensor)
     tracker_global['loss'] = 0
     tracker_global['it'] = 0
-
     for epoch in range(args.epochs):
 
         tracker_epoch = defaultdict(lambda: defaultdict(dict))

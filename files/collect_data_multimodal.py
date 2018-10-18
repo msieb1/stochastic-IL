@@ -153,7 +153,10 @@ def main():
 
                 if n % 50 == 0:
                     print("save trajectories")
-                    save_trajectory(all_trajectories, SAVE_PATH, n+1)
+                    save_trajectory(all_trajectories, SAVE_PATH, 'newest_backup')
+                if n % 50 == 0:
+                    print("save trajectories")
+                    save_trajectory(all_trajectories, SAVE_PATH, 'newest')
                 n += 1
     except KeyboardInterrupt:
         pass
