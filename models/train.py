@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import pandas as pd
 # import seaborn as sns
+from logger import Logger
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from torchvision.datasets import MNIST
@@ -42,6 +43,9 @@ SAVE_PATH = join(EXP_PATH, 'data')
 MODEL_PATH = join(EXP_PATH, 'trained_weights')
 if not os.path.exists(MODEL_PATH):
     os.makedirs(MODEL_PATH)
+LOG_PATH = join('tb', args.expname)
+if not os.path.exists(LOG_PATH):
+    os.makedirs(LOG_PATH)
 
 # find highest pickle number and get all runs, get at least 4 runs to do val split
 seq_names = [int(i.split('.')[0][:5]) for i in os.listdir(SAVE_PATH)]
@@ -102,18 +106,19 @@ def main():
     # aa = copy(np.array(train_set_y))
     # np.random.shuffle(aa)
     # for ii, pt in enumerate(aa):
-    for ii, pt in enumerate(np.random.choice(train_set_y)):
-        # plt.scatter(pt[0], pt[1], s=0.2,c='b')
-        plt.scatter(pt[0], pt[1], s=0.2,c='b')
-        # if ii > 5000:
-        #     break
-    plt.savefig(os.path.join(EXP_PATH, '{}_traj_plot.pdf'.format(args.expname)))
-    plt.show()
-    # return
-    set_trace()
+    #     plt.scatter(pt[0], pt[1], s=0.2,c='b')
+    #     if ii > 5000:
+    #         break
+    # plt.savefig(os.path.join(EXP_PATH, '{}_traj_plot.pdf'.format(args.expname)))
+    # # plt.show()
+    # set_trace()
 
+    print("train len", len(train_set_x))
+    print("val len", len(val_set_x))
     datasets['train'] = TensorDataset(torch.Tensor(train_set_x), torch.Tensor(train_set_y))
     datasets['val'] = TensorDataset(torch.Tensor(val_set_x), torch.Tensor(val_set_y))
+
+    logger = Logger(LOG_PATH)
 
     def loss_fn(recon_x, x, mean, log_var):
         #BCE = torch.nn.functional.binary_cross_entropy(recon_x, x, size_average=False)
@@ -134,11 +139,7 @@ def main():
 
     optimizer = torch.optim.Adam(vae.parameters(), lr=args.learning_rate)
 
-
-    tracker_global = defaultdict(torch.FloatTensor)
-    tracker_global['loss'] = 0
-    tracker_global['it'] = 0
-
+    tot_iteration = 0
     for epoch in range(args.epochs):
 
         tracker_epoch = defaultdict(lambda: defaultdict(dict))
@@ -161,32 +162,25 @@ def main():
                 else:
                     recon_x, mean, log_var, z = vae(x)
 
-                # for i, yi in enumerate(y.data):
-                #     # set_trace()
-                #     id = len(tracker_epoch)
-                #     tracker_epoch[id]['x'] = z[i, 0].data[0]
-                #     tracker_epoch[id]['y'] = z[i, 1].data[0]
-                #     tracker_epoch[id]['label'] = yi[0]
-                #     pass
-
                 loss = loss_fn(recon_x, x, mean, log_var)
+
 
                 if split == 'train':
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
-
-                # tracker_global['loss'] = torch.cat((tracker_global['loss'], loss.data/x.size(0)))
-                # tracker_global['it'] = torch.cat((tracker_global['it'], torch.Tensor([epoch*len(data_loader)+iteration])))
+                    if tot_iteration % 100 == 0:
+                        logger.scalar_summary('train_loss', loss.data.item(), tot_iteration)
+                else:
+                    if tot_iteration % 100 == 0:
+                        logger.scalar_summary('val_loss', loss.data.item(), tot_iteration)
 
                 if iteration % args.print_every == 100 or iteration == len(data_loader)-1:
-                    print("Batch {0:04d}/{1} Loss {2:9.4f}".format(iteration, len(data_loader)-1, loss.data[0]))
+                    print("Batch {0:04d}/{1} Loss {2:9.4f}".format(iteration, len(data_loader)-1, loss.data.item()))
+                tot_iteration += 1
 
-        if (epoch + 1) % 4 == 0:
+        if epoch and epoch % 5 == 0:
             torch.save(vae.state_dict(), join(MODEL_PATH, 'epoch_{}.pk'.format(epoch)))
-            # df = pd.DataFrame.from_dict(tracker_epoch, orient='index')
-            # g = sns.lmplot(x='x', y='y', hue='label', data=df.groupby('label').head(100), fit_reg=False, legend=True)
-            # g.savefig(os.path.join(args.fig_root, str(ts), "E%i-Dist.png"%epoch), dpi=300)
             print("saving weights...")
 
 if __name__ == '__main__':
